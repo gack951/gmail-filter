@@ -1,0 +1,6 @@
+# Google Cloud Console で作成した OAuth 2.0 ウェブクライアント
+GOOGLE_CLIENT_ID=replace-with-google-client-id
+GOOGLE_CLIENT_SECRET=replace-with-google-client-secret
+
+# 32文字以上のランダム文字列（例: openssl rand -base64 32）
+APP_SECRET=replace-with-a-random-string-at-least-32-characters

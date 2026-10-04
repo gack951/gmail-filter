@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Gmailフィルタ作成ツール" />
+    <title>Gmail Filter</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header id="account" class="account-bar" hidden>
+      <span id="account-email"></span>
+      <form action="/auth/logout" method="post"><button type="submit">ログアウト</button></form>
+    </header>
+
+    <main>
+      <p id="loading" class="loading" aria-live="polite">読み込み中…</p>
+
+      <section id="login" class="login" hidden>
+        <a class="primary" href="/auth/login">Googleアカウントでログイン</a>
+      </section>
+
+      <div id="app" class="workspace" hidden>
+        <section class="inbox-pane" aria-labelledby="inbox-title">
+          <div class="section-bar">
+            <h1 id="inbox-title">受信トレイ</h1>
+            <button id="refresh-inbox" type="button">更新</button>
+          </div>
+          <p class="hint">メールを選ぶと差出人を条件に設定します。</p>
+          <div id="inbox" class="inbox-list" aria-live="polite"></div>
+        </section>
+
+        <section class="editor-pane">
+          <div id="selected-mail" class="selected-mail" hidden>
+            <button id="clear-selected" type="button" aria-label="選択解除">×</button>
+            <strong id="selected-subject"></strong>
+            <span id="selected-from"></span>
+            <small id="content-status">本文を取得中…</small>
+          </div>
+
+          <form id="filter-form" class="filter-form">
+            <div class="section-bar"><h2>条件</h2><span>すべてAND</span></div>
+            <div class="fields">
+              <label>差出人<input name="from" type="text" maxlength="500" placeholder="shop@example.com" autocomplete="off" /></label>
+              <label>宛先<input name="to" type="text" maxlength="500" placeholder="me@example.com" autocomplete="off" /></label>
+              <label>
+                件名に含む
+                <input id="subject-input" name="subject" type="text" maxlength="500" placeholder="入力すると選択メールと照合" autocomplete="off" />
+                <small id="subject-match" class="match" aria-live="polite"></small>
+              </label>
+              <label>
+                本文に含む
+                <input id="body-input" name="body" type="text" maxlength="500" placeholder="入力すると選択メールと照合" autocomplete="off" />
+                <small id="body-match" class="match" aria-live="polite"></small>
+              </label>
+            </div>
+
+            <details class="advanced">
+              <summary>Gmail検索式</summary>
+              <input name="query" type="text" maxlength="1000" placeholder="has:attachment older_than:1y" autocomplete="off" />
+            </details>
+
+            <fieldset>
+              <legend>処理</legend>
+              <div class="checks">
+                <label><input name="markRead" type="checkbox" />既読</label>
+                <label><input name="archive" type="checkbox" />アーカイブ</label>
+                <label><input name="trash" type="checkbox" />削除</label>
+                <label><input name="star" type="checkbox" />スター</label>
+                <label><input name="important" type="checkbox" />重要</label>
+              </div>
+            </fieldset>
+
+            <div class="label-row">
+              <label>既存ラベル<select id="label-select" name="labelId"><option value="">なし</option></select></label>
+              <label>新規ラベル<input id="new-label" name="newLabelName" type="text" maxlength="225" placeholder="ラベル名" autocomplete="off" /></label>
+            </div>
+
+            <div class="submit-row">
+              <label><input name="applyExisting" type="checkbox" checked />既存メールにも適用</label>
+              <button id="submit-button" class="primary" type="submit">フィルタを作成</button>
+            </div>
+          </form>
+
+          <details class="rules-section">
+            <summary>登録済みフィルタ <span id="rule-count">0</span></summary>
+            <div id="rules" class="rules-list"></div>
+          </details>
+        </section>
+      </div>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>
