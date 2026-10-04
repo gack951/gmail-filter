@@ -76,6 +76,7 @@ h1, h2 { margin: 0; font-size: 15px; }
 
 .filter-form { display: grid; gap: 7px; margin-top: 7px; }
 .fields, .label-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; }
+.fields > label, .label-row > label { min-width: 0; }
 label { font-size: 11px; color: #3c4043; }
 input[type="text"], select {
   display: block;
@@ -93,10 +94,28 @@ input:disabled, select:disabled { background: #f1f3f4; color: #9aa0a6; }
 .match { display: block; min-height: 13px; color: #5f6368; }
 .match.ok { color: #137333; }
 .match.ng { color: #b3261e; }
+.candidates { min-width: 0; display: flex; gap: 3px; margin-top: 2px; overflow: hidden; }
+.candidate {
+  min-width: 0;
+  padding: 2px 5px;
+  overflow: hidden;
+  border: 1px solid #bdc1c6;
+  background: #fff;
+  color: #3c4043;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.candidate.selected { border-color: #1a73e8; background: #e8f0fe; color: #174ea6; }
 
 .advanced { font-size: 11px; }
 .advanced summary { width: fit-content; color: #1a73e8; cursor: pointer; padding: 2px 0; }
 .advanced[open] input { margin-top: 3px; }
+.preview-row { display: flex; align-items: flex-start; gap: 6px; }
+#preview-button { padding: 4px 7px; border: 1px solid #1a73e8; background: #fff; color: #1a73e8; }
+#preview-result { min-width: 0; flex: 1; display: grid; padding-left: 6px; border-left: 2px solid #1a73e8; font-size: 10px; }
+#preview-result strong, .preview-mail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-mail { color: #5f6368; }
 fieldset { margin: 0; padding: 3px 0 0; border: 0; border-top: 1px solid #eee; }
 legend { padding: 0 5px 0 0; font-size: 11px; font-weight: 600; }
 .checks { display: flex; flex-wrap: wrap; gap: 4px; }

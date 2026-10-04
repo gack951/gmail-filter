@@ -6,7 +6,7 @@
     <meta name="description" content="Gmailフィルタ作成ツール" />
     <title>Gmail Filter</title>
     <link rel="stylesheet" href="/styles.css" />
-    <script src="/app.js" defer></script>
+    <script type="module" src="/app.js"></script>
   </head>
   <body>
     <header id="account" class="account-bar" hidden>
@@ -42,12 +42,17 @@
           <form id="filter-form" class="filter-form">
             <div class="section-bar"><h2>条件</h2><span>すべてAND</span></div>
             <div class="fields">
-              <label>差出人<input name="from" type="text" maxlength="500" placeholder="shop@example.com" autocomplete="off" /></label>
+              <label>
+                差出人
+                <input id="from-input" name="from" type="text" maxlength="500" placeholder="shop@example.com" autocomplete="off" />
+                <span id="from-candidates" class="candidates" hidden></span>
+              </label>
               <label>宛先<input name="to" type="text" maxlength="500" placeholder="me@example.com" autocomplete="off" /></label>
               <label>
                 件名に含む
                 <input id="subject-input" name="subject" type="text" maxlength="500" placeholder="入力すると選択メールと照合" autocomplete="off" />
                 <small id="subject-match" class="match" aria-live="polite"></small>
+                <span id="subject-candidates" class="candidates" hidden></span>
               </label>
               <label>
                 本文に含む
@@ -60,6 +65,11 @@
               <summary>Gmail検索式</summary>
               <input name="query" type="text" maxlength="1000" placeholder="has:attachment older_than:1y" autocomplete="off" />
             </details>
+
+            <div class="preview-row">
+              <button id="preview-button" type="button">該当メールを確認</button>
+              <div id="preview-result" aria-live="polite" hidden></div>
+            </div>
 
             <fieldset>
               <legend>処理</legend>

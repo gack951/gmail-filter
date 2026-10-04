@@ -1,3 +1,5 @@
+import { subjectCandidates } from "./candidates.js";
+
 const loading = document.querySelector("#loading");
 const login = document.querySelector("#login");
 const app = document.querySelector("#app");
@@ -9,8 +11,13 @@ const newLabel = document.querySelector("#new-label");
 const inbox = document.querySelector("#inbox");
 const rules = document.querySelector("#rules");
 const toast = document.querySelector("#toast");
+const fromInput = document.querySelector("#from-input");
 const subjectInput = document.querySelector("#subject-input");
 const bodyInput = document.querySelector("#body-input");
+const fromCandidates = document.querySelector("#from-candidates");
+const subjectCandidateList = document.querySelector("#subject-candidates");
+const previewButton = document.querySelector("#preview-button");
+const previewResult = document.querySelector("#preview-result");
 let labels = [];
 let selectedMessage = null;
 
@@ -74,8 +81,12 @@ async function selectMessage(message, button) {
   document.querySelectorAll(".mail-row.selected").forEach((row) => row.classList.remove("selected"));
   button.classList.add("selected");
   selectedMessage = { ...message, text: message.snippet, loading: true, truncated: false };
-  form.elements.from.value = message.fromAddress;
-  form.elements.subject.value = message.subject === "（件名なし）" ? "" : message.subject;
+  fromInput.value = message.fromAddress;
+  subjectInput.value = message.subject === "（件名なし）" ? "" : message.subject;
+  const domain = message.fromAddress.includes("@") ? `@${message.fromAddress.split("@").pop()}` : "";
+  renderCandidates(fromCandidates, [message.fromAddress, domain], fromInput);
+  renderCandidates(subjectCandidateList, subjectCandidates(message.subject), subjectInput);
+  clearPreview();
   document.querySelector("#selected-mail").hidden = false;
   document.querySelector("#selected-subject").textContent = message.subject;
   document.querySelector("#selected-from").textContent = message.from;
@@ -100,6 +111,8 @@ document.querySelector("#clear-selected").addEventListener("click", () => {
   selectedMessage = null;
   document.querySelector("#selected-mail").hidden = true;
   document.querySelectorAll(".mail-row.selected").forEach((row) => row.classList.remove("selected"));
+  renderCandidates(fromCandidates, [], fromInput);
+  renderCandidates(subjectCandidateList, [], subjectInput);
   updateMatches();
 });
 
@@ -138,6 +151,68 @@ function showMatch(selector, word, target, truncated, isLoading) {
 
 subjectInput.addEventListener("input", updateMatches);
 bodyInput.addEventListener("input", updateMatches);
+
+function renderCandidates(container, values, input) {
+  container.replaceChildren();
+  const candidates = [...new Set(values.filter(Boolean))];
+  container.hidden = !candidates.length;
+  for (const value of candidates) {
+    const button = element("button", "candidate", value);
+    button.type = "button";
+    button.title = value;
+    button.addEventListener("click", () => {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    container.append(button);
+  }
+  markCandidate(container, input.value);
+}
+
+function markCandidate(container, value) {
+  for (const button of container.children) button.classList.toggle("selected", button.title === value);
+}
+
+for (const input of [fromInput, form.elements.to, subjectInput, bodyInput, form.elements.query]) {
+  input.addEventListener("input", () => {
+    if (input === fromInput) markCandidate(fromCandidates, input.value);
+    if (input === subjectInput) markCandidate(subjectCandidateList, input.value);
+    clearPreview();
+  });
+}
+
+previewButton.addEventListener("click", async () => {
+  previewButton.disabled = true;
+  previewButton.textContent = "確認中…";
+  try {
+    const criteria = criteriaFrom(new FormData(form));
+    const requestedCriteria = JSON.stringify(criteria);
+    const data = await request("/api/preview", {
+      method: "POST",
+      body: JSON.stringify({ criteria }),
+    });
+    if (requestedCriteria !== JSON.stringify(criteriaFrom(new FormData(form)))) return;
+    previewResult.replaceChildren(element("strong", "", `受信トレイ 約${data.estimatedCount}件`));
+    for (const message of data.messages) {
+      previewResult.append(element("span", "preview-mail", `${displaySender(message.from)}｜${message.subject}`));
+    }
+    previewResult.hidden = false;
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    previewButton.disabled = false;
+    previewButton.textContent = "該当メールを確認";
+  }
+});
+
+function clearPreview() {
+  previewResult.hidden = true;
+  previewResult.replaceChildren();
+}
+
+function criteriaFrom(values) {
+  return Object.fromEntries(["from", "to", "subject", "body", "query"].map((key) => [key, values.get(key)]));
+}
 
 function renderLabelOptions() {
   labelSelect.replaceChildren(new Option("なし", ""));
@@ -196,7 +271,7 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const values = new FormData(form);
   const payload = {
-    criteria: Object.fromEntries(["from", "to", "subject", "body", "query"].map((key) => [key, values.get(key)])),
+    criteria: criteriaFrom(values),
     actions: {
       markRead: values.has("markRead"), archive: values.has("archive"), trash: values.has("trash"),
       star: values.has("star"), important: values.has("important"), labelId: values.get("labelId"), newLabelName: values.get("newLabelName"),
@@ -214,6 +289,9 @@ form.addEventListener("submit", async (event) => {
     form.elements.applyExisting.checked = true;
     labelSelect.disabled = false;
     newLabel.disabled = false;
+    clearPreview();
+    markCandidate(fromCandidates, "");
+    markCandidate(subjectCandidateList, "");
     updateMatches();
     await refreshRules();
   } catch (error) {

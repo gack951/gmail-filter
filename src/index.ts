@@ -157,6 +157,14 @@ async function handleApi(request: Request, url: URL, env: Env): Promise<Response
     return json(await getMessageContent(accessToken, messageMatch[1]));
   }
 
+  if (request.method === "POST" && url.pathname === "/api/preview") {
+    const criteria = parseCriteriaInput(await readJsonBody(request));
+    const spec = buildFilterSpec(criteria, {
+      markRead: false, archive: false, trash: false, star: false, important: false, labelId: "", newLabelName: "",
+    });
+    return json(await previewMatches(accessToken, spec.searchQuery));
+  }
+
   if (request.method === "POST" && url.pathname === "/api/filters") {
     const input = parseFilterInput(await readJsonBody(request));
     let labelId = input.actions.labelId;
@@ -202,6 +210,20 @@ async function listInbox(accessToken: string): Promise<InboxMessage[]> {
   const params = new URLSearchParams({ labelIds: "INBOX", maxResults: "12" });
   const data = await gmailJson(`${GMAIL_API}/messages?${params}`, accessToken);
   const ids = arrayField(data, "messages").map((message) => stringField(message, "id")).filter((id): id is string => Boolean(id));
+  return getMessageSummaries(accessToken, ids);
+}
+
+async function previewMatches(accessToken: string, searchQuery: string): Promise<{ estimatedCount: number; messages: InboxMessage[] }> {
+  const params = new URLSearchParams({ q: searchQuery, labelIds: "INBOX", maxResults: "5" });
+  const data = await gmailJson(`${GMAIL_API}/messages?${params}`, accessToken);
+  const ids = arrayField(data, "messages").map((message) => stringField(message, "id")).filter((id): id is string => Boolean(id));
+  return {
+    estimatedCount: Math.max(numberField(data, "resultSizeEstimate") ?? 0, ids.length),
+    messages: await getMessageSummaries(accessToken, ids),
+  };
+}
+
+async function getMessageSummaries(accessToken: string, ids: string[]): Promise<InboxMessage[]> {
   const headerParams = new URLSearchParams({ format: "metadata" });
   for (const name of ["From", "To", "Subject", "Date"]) headerParams.append("metadataHeaders", name);
   const messages = await Promise.all(ids.map((id) => gmailJson(`${GMAIL_API}/messages/${encodeURIComponent(id)}?${headerParams}`, accessToken)));
@@ -340,18 +362,9 @@ async function readUpstreamJson(response: Response): Promise<Record<string, unkn
 }
 
 function parseFilterInput(value: Record<string, unknown>): FilterInput {
-  const rawCriteria = recordField(value, "criteria");
   const rawActions = recordField(value, "actions");
-  if (!rawCriteria || !rawActions) throw new AppError(400, "入力内容が不正です。");
-  const criteria: CriteriaInput = {
-    from: optionalString(rawCriteria, "from", 500),
-    to: optionalString(rawCriteria, "to", 500),
-    subject: optionalString(rawCriteria, "subject", 500),
-    body: optionalString(rawCriteria, "body", 500),
-    query: optionalString(rawCriteria, "query", 1000),
-  };
-  if (!Object.values(criteria).some(Boolean)) throw new AppError(400, "少なくとも1つの条件を入力してください。");
-
+  if (!rawActions) throw new AppError(400, "入力内容が不正です。");
+  const criteria = parseCriteriaInput(value);
   const actions: ActionsInput = {
     markRead: booleanField(rawActions, "markRead"),
     archive: booleanField(rawActions, "archive"),
@@ -366,6 +379,20 @@ function parseFilterInput(value: Record<string, unknown>): FilterInput {
     throw new AppError(400, "少なくとも1つの処理を選んでください。");
   }
   return { criteria, actions, applyExisting: value.applyExisting !== false };
+}
+
+function parseCriteriaInput(value: Record<string, unknown>): CriteriaInput {
+  const rawCriteria = recordField(value, "criteria");
+  if (!rawCriteria) throw new AppError(400, "入力内容が不正です。");
+  const criteria: CriteriaInput = {
+    from: optionalString(rawCriteria, "from", 500),
+    to: optionalString(rawCriteria, "to", 500),
+    subject: optionalString(rawCriteria, "subject", 500),
+    body: optionalString(rawCriteria, "body", 500),
+    query: optionalString(rawCriteria, "query", 1000),
+  };
+  if (!Object.values(criteria).some(Boolean)) throw new AppError(400, "少なくとも1つの条件を入力してください。");
+  return criteria;
 }
 
 async function readJsonBody(request: Request): Promise<Record<string, unknown>> {
@@ -503,6 +530,10 @@ function recordField(value: Record<string, unknown>, key: string): Record<string
 
 function stringField(value: unknown, key: string): string | null {
   return isRecord(value) && typeof value[key] === "string" ? value[key] : null;
+}
+
+function numberField(value: unknown, key: string): number | null {
+  return isRecord(value) && typeof value[key] === "number" && Number.isFinite(value[key]) ? value[key] : null;
 }
 
 function nestedStringField(value: Record<string, unknown>, parent: string, key: string): string | null {
