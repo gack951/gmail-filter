@@ -75,6 +75,7 @@ async function selectMessage(message, button) {
   button.classList.add("selected");
   selectedMessage = { ...message, text: message.snippet, loading: true, truncated: false };
   form.elements.from.value = message.fromAddress;
+  form.elements.subject.value = message.subject === "（件名なし）" ? "" : message.subject;
   document.querySelector("#selected-mail").hidden = false;
   document.querySelector("#selected-subject").textContent = message.subject;
   document.querySelector("#selected-from").textContent = message.from;
