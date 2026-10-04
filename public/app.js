@@ -16,10 +16,12 @@ const subjectInput = document.querySelector("#subject-input");
 const bodyInput = document.querySelector("#body-input");
 const fromCandidates = document.querySelector("#from-candidates");
 const subjectCandidateList = document.querySelector("#subject-candidates");
-const previewButton = document.querySelector("#preview-button");
 const previewResult = document.querySelector("#preview-result");
 let labels = [];
 let selectedMessage = null;
+let previewTimer;
+let previewController;
+let composing = false;
 
 const criteriaNames = { from: "差出人", to: "宛先", subject: "件名", query: "本文・検索", negatedQuery: "含まない" };
 const systemActions = {
@@ -86,7 +88,7 @@ async function selectMessage(message, button) {
   const domain = message.fromAddress.includes("@") ? `@${message.fromAddress.split("@").pop()}` : "";
   renderCandidates(fromCandidates, [message.fromAddress, domain], fromInput);
   renderCandidates(subjectCandidateList, subjectCandidates(message.subject), subjectInput);
-  clearPreview();
+  schedulePreview();
   document.querySelector("#selected-mail").hidden = false;
   document.querySelector("#selected-subject").textContent = message.subject;
   document.querySelector("#selected-from").textContent = message.from;
@@ -174,22 +176,41 @@ function markCandidate(container, value) {
 }
 
 for (const input of [fromInput, form.elements.to, subjectInput, bodyInput, form.elements.query]) {
-  input.addEventListener("input", () => {
+  input.addEventListener("compositionstart", () => {
+    composing = true;
+    clearPreview();
+  });
+  input.addEventListener("compositionend", () => {
+    composing = false;
+    schedulePreview();
+  });
+  input.addEventListener("input", (event) => {
     if (input === fromInput) markCandidate(fromCandidates, input.value);
     if (input === subjectInput) markCandidate(subjectCandidateList, input.value);
-    clearPreview();
+    if (event.isComposing || composing) clearPreview();
+    else schedulePreview();
   });
 }
 
-previewButton.addEventListener("click", async () => {
-  previewButton.disabled = true;
-  previewButton.textContent = "確認中…";
+function schedulePreview() {
+  clearPreview();
+  if (composing) return;
+  const criteria = criteriaFrom(new FormData(form));
+  if (!Object.values(criteria).some((value) => String(value).trim())) return;
+  previewResult.textContent = "照合中…";
+  previewResult.hidden = false;
+  previewTimer = window.setTimeout(() => loadPreview(criteria), 600);
+}
+
+async function loadPreview(criteria) {
+  const controller = new AbortController();
+  previewController = controller;
   try {
-    const criteria = criteriaFrom(new FormData(form));
     const requestedCriteria = JSON.stringify(criteria);
     const data = await request("/api/preview", {
       method: "POST",
       body: JSON.stringify({ criteria }),
+      signal: controller.signal,
     });
     if (requestedCriteria !== JSON.stringify(criteriaFrom(new FormData(form)))) return;
     previewResult.replaceChildren(element("strong", "", `受信トレイ 約${data.estimatedCount}件`));
@@ -198,14 +219,18 @@ previewButton.addEventListener("click", async () => {
     }
     previewResult.hidden = false;
   } catch (error) {
-    showToast(error.message, true);
+    if (error.name === "AbortError") return;
+    previewResult.replaceChildren(element("span", "preview-error", error.message));
+    previewResult.hidden = false;
   } finally {
-    previewButton.disabled = false;
-    previewButton.textContent = "該当メールを確認";
+    if (previewController === controller) previewController = undefined;
   }
-});
+}
 
 function clearPreview() {
+  window.clearTimeout(previewTimer);
+  previewController?.abort();
+  previewController = undefined;
   previewResult.hidden = true;
   previewResult.replaceChildren();
 }
